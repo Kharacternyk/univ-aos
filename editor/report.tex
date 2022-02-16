@@ -1,0 +1,222 @@
+\documentclass[a4paper]{article}
+\title{
+    Лабораторна робота №1\\
+    Взаємодія розподілених процесів через механізм сокетів
+}
+\author{Віннічук Назар K-25}
+
+\usepackage{graphicx}
+
+\usepackage{polyglossia}
+\setdefaultlanguage{ukrainian}
+\setotherlanguage{english}
+
+\usepackage{fontspec}
+\setmainfont{IBM Plex Sans}
+\setmonofont{IBM Plex Mono}
+
+\usepackage{minted}
+
+\usepackage[margin=2cm]{geometry}
+
+\usepackage[parfill]{parskip}
+
+\frenchspacing
+
+\newcommand{\code}[1]{\textbf{\texttt{#1}}}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+\section{Умова}
+
+\subsection{Варіант 1: Редактор текстових рядків}
+
+Після приєднання клієнта, сервер передає йому набір текстових рядків (не менше
+5). У клієнті можна змінювати символи, вставляти нові чи видаляти, не порушуючи
+кількість рядків та їх максимальний розмір. Будь-яка зміна у рядках клієнта
+(заміна символу, видалення, вставка нового) передаються серверу для збереження.
+
+\section{Реалізація}
+
+\subsection{Механізм сокетів}
+Клієнт та сервер використовують стандартні засоби роботи з сокетами ОС Linux.
+Функції та структури для роботи з ними оголошенні в заголовках
+\code{<sys/socket.h>} та \code{<netinet/in.h>}. Сервер використовує послідовно
+функції \code{socket()}, \code{bind()}, та \code{listen()}, після чого очікує
+на клієнтів у циклі з функцією \code{accept()}; при отримані звістки про
+від'єднання клієнта викликається \code{close()} та цикл очікування на клієнтів
+продовжується. Клієнт натомість викликає лише \code{socket()}, \code{connect()}
+та \code{close()}.
+
+\subsection{Редагування тексту}
+Після під'єднання клієнта сервер надсилає йому текст до редагування, по рядку
+на повідомлення. Потім сервер очікує на команди клієнта. Команда довжини 0 означає
+бажання клієнта припинити сеанс редагування. Інші команди мають довжину в 3 байти, які
+репрезентують координати та символ. Команди інших довжин вважаються помилковими — сервер
+припиняє з'єднання чи ігнорує решту команди у відповідь на закоротку чи задовгу команди
+відповідно.
+
+\subsection{Висновки}
+\begin{itemize}
+    \item
+        Виклик функцій \code{write()} та \code{read()} можуть повернути меншу
+        кількість байт ніж вимагалось аргументом функції — передача повідомлень
+        не гарантовано суцільна. Тому запис та читання повинні реалізовуватись
+        у циклі. Прикладом реалізації є макрос \code{do\_till\_end()} у
+        \code{shared.h}.
+    \item
+        Робота з сокетами вимагає виклику кількох функцій у певному порядку. Варто уникати
+        типових помилок:
+        \begin{itemize}
+            \item Відсутність \code{close()} по завершенню з'єднання.
+            \item Використання \code{connect()} сервером.
+            \item Використання \code{bind()} клієнтом.
+            \item Відсутність \code{accept()} сервером по завершенню з'єднання,
+                що призводить до неможливості роботи сервером з кількома послідовними
+                клієнтами.
+        \end{itemize}
+    \item Неправильний вибір параметрів-констант (\code{AF\_INET}) та
+        неправильне конструювання структури, що описує адресу
+        (\code{struct sockaddr\_in addr}), призводить до помилок, що важко ідентифікувати.
+\end{itemize}
+
+\section{Програмний код}
+
+\subsection{Makefile}
+\inputminted{Makefile}{Makefile}
+
+\subsection{shared.h}
+\inputminted{C}{shared.h}
+
+\subsection{client.c}
+\inputminted{C}{client.c}
+
+\subsection{server.c}
+\inputminted{C}{server.c}
+
+\section{Зображення програм}
+
+\subsection{Сервер}
+Сервер використовує інтерфейс командного рядка. Він виводить текст за кожної
+його зміни та повідомляє про від'єднання клієнта:
+
+\begin{minted}{text}
+$ ./server 2> /dev/null
+Eello, this is a text for you to edit!
+Here are some words, and more and more...
+Blah, blah...
+Do not forget to save the changes once you are done!
+Just kidding, it is saved automatically:)
+
+Edllo, this is a text for you to edit!
+Here are some words, and more and more...
+Blah, blah...
+Do not forget to save the changes once you are done!
+Just kidding, it is saved automatically:)
+
+Edilo, this is a text for you to edit!
+Here are some words, and more and more...
+Blah, blah...
+Do not forget to save the changes once you are done!
+Just kidding, it is saved automatically:)
+
+Edito, this is a text for you to edit!
+Here are some words, and more and more...
+Blah, blah...
+Do not forget to save the changes once you are done!
+Just kidding, it is saved automatically:)
+
+Editi, this is a text for you to edit!
+Here are some words, and more and more...
+Blah, blah...
+Do not forget to save the changes once you are done!
+Just kidding, it is saved automatically:)
+
+Editin this is a text for you to edit!
+Here are some words, and more and more...
+Blah, blah...
+Do not forget to save the changes once you are done!
+Just kidding, it is saved automatically:)
+
+Editingthis is a text for you to edit!
+Here are some words, and more and more...
+Blah, blah...
+Do not forget to save the changes once you are done!
+Just kidding, it is saved automatically:)
+
+Editing!his is a text for you to edit!
+Here are some words, and more and more...
+Blah, blah...
+Do not forget to save the changes once you are done!
+Just kidding, it is saved automatically:)
+
+Editing!!is is a text for you to edit!
+Here are some words, and more and more...
+Blah, blah...
+Do not forget to save the changes once you are done!
+Just kidding, it is saved automatically:)
+
+Editing!!!s is a text for you to edit!
+Here are some words, and more and more...
+Blah, blah...
+Do not forget to save the changes once you are done!
+Just kidding, it is saved automatically:)
+
+Editing!!!s is a text for you to edit!
+Here are some ?ords, and more and more...
+Blah, blah...
+Do not forget to save the changes once you are done!
+Just kidding, it is saved automatically:)
+
+Editing!!!s is a text for you to edit!
+Here are some ??rds, and more and more...
+Blah, blah...
+Do not forget to save the changes once you are done!
+Just kidding, it is saved automatically:)
+
+Editing!!!s is a text for you to edit!
+Here are some ???ds, and more and more...
+Blah, blah...
+Do not forget to save the changes once you are done!
+Just kidding, it is saved automatically:)
+
+Editing!!!s is a text for you to edit!
+Here are some ????s, and more and more...
+Blah, blah...
+Do not forget to save the changes once you are done!
+Just kidding, it is saved automatically:)
+
+Editing!!!s is a text for you to edit!
+Here are some ?????, and more and more...
+Blah, blah...
+Do not forget to save the changes once you are done!
+Just kidding, it is saved automatically:)
+
+The client has disconnected
+\end{minted}
+
+\subsection{Клієнт}
+Клієнт використовує інтерфейс консольної графіки за допомогою бібліотеки ncurses.
+
+\begin{center}
+  \includegraphics[scale=0.5]{screenshot.png}
+\end{center}
+
+\section{Протокол виконання}
+
+До сервера було під'єднано послідовно два клієнта, що робили зміни у рядках та завершували
+з'єднання.
+
+\subsection{Сервер}
+\inputminted[fontsize=\footnotesize, breaklines]{text}{server.log}
+
+\subsection{Клієнт №1}
+\inputminted[fontsize=\footnotesize, breaklines]{text}{client1.log}
+
+\subsection{Клієнт №2}
+\inputminted[fontsize=\footnotesize, breaklines]{text}{client2.log}
+
+\end{document}
